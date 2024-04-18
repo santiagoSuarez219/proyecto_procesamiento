@@ -1,44 +1,42 @@
-#Laboratorio 1 Procesamiento de señales
-# import sympy as sp
+# Santiago Suarez Cortes - 1017269056
+# Juan Camilo Morales Duran - 1005183857
+# David Andres Llano Balvin - 1152219130
+
 import numpy as np
 import matplotlib.pyplot as plt
 import sympy as sp
 import scipy
+from scipy import signal
 
 MAIN_MENU = """
-Ingrese la señal de entrada:
 1. Escalon unitario u(n)
 2. Impulso unitario δ(n)
 3. Exponencial
 
-Dato ingresado: 
+Ingrese la señal de entrada:: 
 """
 
 ORDER_MENU = """
-Seleccione el orden del sistema:
-
 1. 1er orden
 2. 2do orden
 3. 3er orden
 
-Dato ingresado: 
+Seleccione el orden del sistema:: 
 """
 
 z = sp.symbols('z')
 
-def menu():
+def mostrar_menu():
     gamma = 0
-    # opcion = int(input(MAIN_MENU))
-    # if opcion == 3:
-    #    gamma = float(input("\nIngrese valor de γ: "))
-    #numeroDatos = int(input("Ingrese número de datos de la señal: "))
-    #frecuenciaMuestreo = int(input("Ingrese frecuencia de muestreo (Hz): "))
+    opcion = int(input(MAIN_MENU))
+    if opcion == 3:
+       gamma = float(input("\nIngrese valor de γ: "))
+    numero_datos = int(input("Ingrese número de datos de la señal: "))
+    frecuencia_muestreo = int(input("Ingrese frecuencia de muestreo (Hz): "))
     orden = int(input(ORDER_MENU))
-    #return opcion, numeroDatos, frecuenciaMuestreo, gamma, orden
-    return orden
+    return numero_datos, frecuencia_muestreo, gamma, orden, opcion
 
-
-def coeficientes(orden):
+def pedir_coeficientes(orden):
     cadena_a = ""
     cadena_b = ""
     for i in range(orden,-1,-1):
@@ -50,40 +48,35 @@ def coeficientes(orden):
         cadena_b += "b_"+ str(i) + ", " 
     valores_a = input(f"\nIngrese {cadena_a} ")
     valores_b = input(f"Ingrese {cadena_b} ")
-    coeficientes_a = tuple(valores_a.split(",")) # coeficientes del denominador
-    coeficientes_b = tuple(valores_b.split(",")) # coeficientes del numerador
-    return coeficientes_a, coeficientes_b
+    coeficientes_denominador = np.array(valores_a.split(",")).astype(int) # coeficientes del denominador
+    coeficientes_numerador = np.array(valores_b.split(",")).astype(int) # coeficientes del numerador
+    return coeficientes_denominador, coeficientes_numerador
 
-def condicionesIniciales(orden):
+def pedir_condiciones_iniciales(orden):
     condiciones_iniciales = []
     for i in range(orden):
         condiciones_iniciales.append(float(input("Ingrese y(" + str(-(i+1)) + "): ")))
-    condiciones_iniciales = tuple(condiciones_iniciales)
+    # condiciones_iniciales = np.array(condiciones_iniciales)
     return condiciones_iniciales
 
-def contruirFuncionTransferencia(coeficientes_a, coeficientes_b):
-    den_coeficientes = coeficientes_a
-    num_coeficientes = coeficientes_b
+def contruirFuncionTransferencia(coeficientes_denominador, coeficientes_numerador):
+    den_coeficientes = coeficientes_denominador
+    num_coeficientes = coeficientes_numerador
     sumatoria = 0
     for i,c in enumerate(den_coeficientes):
-        sumatoria += int(c) * z**(len(den_coeficientes)-(i+1))
+        sumatoria += c * z**(len(den_coeficientes)-(i+1))
     denominador = sumatoria
     sumatoria = 0
     for i,c in enumerate(num_coeficientes):
-        sumatoria += int(c) * z**(len(num_coeficientes)-(i+1))
+        sumatoria += c * z**(len(num_coeficientes)-(i+1))
     numerador = sumatoria
-
-        
-
-    # numerador = sum(int(c) * z**(len(num_coeficientes)-(i+1)) for i, c in enumerate(num_coeficientes))
-    # denominador = sum(int(c) * z**(len(num_coeficientes)-i+1) for i, c in enumerate(den_coeficientes))
     funcion_transferencia = numerador / denominador
     print("\nH(z): ")
     print(sp.printing.pretty(funcion_transferencia))
     print("\n")
 
-def encontrarPolosYceros(coeficientes_a, coeficientes_b):
-    ceros, polos, k = scipy.signal.residue(coeficientes_b, coeficientes_a)
+def encontrarPolosYceros(coeficientes_denominador, coeficientes_numerador):
+    ceros, polos, k = scipy.signal.residue(coeficientes_numerador, coeficientes_denominador)
     return ceros, polos
 
 def estabilidadSistema(polos):
@@ -94,7 +87,7 @@ def estabilidadSistema(polos):
             return "Sistema marginalmente estable"
     return "Sistema estable"
 
-def graficaPolos(polos, estabilidad_sistema):
+def graficar_polos(polos, estabilidad_sistema):
     x = [p.real for p in polos]
     y = [p.imag for p in polos]
     theta = np.linspace(0, 2*np.pi, 100)
@@ -109,17 +102,61 @@ def graficaPolos(polos, estabilidad_sistema):
     plt.axis('equal')
     plt.savefig('polos.png')
 
-
-def main ():
-    orden = menu()
-    coeficientes_a, coeficientes_b = coeficientes(orden)
-    # condiciones_iniciales = condicionesIniciales(orden)
-    contruirFuncionTransferencia(coeficientes_a, coeficientes_b)
-    ceros, polos = encontrarPolosYceros(coeficientes_a, coeficientes_b)
-    estabilidad_sistema = estabilidadSistema(polos)
-    print(estabilidad_sistema)
-    graficaPolos(polos, estabilidad_sistema)
+# Respuesta de entrada cero metodo iterativo
+def respuesta_entrada_cero_iterativo(ay, bj, condiciones_iniciales, n = 6):
+    yz = list(condiciones_iniciales)
+    for i in range(n):
+        suma_ay_yz = sum(ay[j] * yz[i-j] for j in range(len(ay)))
+        suma_bj_uz = sum(bj[j] * yz[i-j] for j in range(1, len(bj)))
+        yz.append(suma_ay_yz - suma_bj_uz)
+    return yz
 
 
-if __name__ == "__main__":
-    main()
+# Iterativa
+def respuesta_impulso_iterativo(coeficientes_numerador, coeficientes_denominador):
+    u = lambda n: 1*(n >= 0)
+    h = np.zeros(6, dtype=complex)  # Se especifica el tipo de dato como complejo
+    r, p, k = scipy.signal.residue(coeficientes_numerador, coeficientes_denominador)
+    for n in range(len(h)):
+        for i, residue in enumerate(r):
+            # Actualizar h[n] con la contribución de cada residuo y polo
+            h[n] = h[n] + residue * p[i]**n * u(n)
+    print(f'h[n] de forma iterativa es {h}')
+    return h
+
+def respuesta_impulso_analitico():
+    tiempo_muestreo = numero_datos/frecuencia_muestreo
+    dlti= signal.dlti(coeficientes_numerador, coeficientes_denominador, dt=tiempo_muestreo)
+    t, h_analitico = signal.dimpulse(dlti)
+    return t, h_analitico
+
+def convolution(h):
+    n = np.arange(numero_datos)
+    u = lambda n: 1*(n >= 0)
+    impulso = lambda n: 1*(n == 0)
+    if opcion == 1:
+        y = np.convolve(u(numero_datos), h, mode='same')
+    elif opcion == 2:
+        y = np.convolve(impulso(numero_datos), h, mode='same')
+    elif opcion == 3:
+        y = np.convolve(gamma**n, h, mode='same')
+    return y
+
+
+# Método iterativo
+numero_datos, frecuencia_muestreo, gamma, orden, opcion= mostrar_menu()
+coeficientes_denominador, coeficientes_numerador = pedir_coeficientes(orden)
+condiciones_iniciales = pedir_condiciones_iniciales(orden)
+contruirFuncionTransferencia(coeficientes_denominador, coeficientes_numerador)
+ceros, polos = encontrarPolosYceros(coeficientes_denominador, coeficientes_numerador)
+estabilidad_sistema = estabilidadSistema(polos)
+print(estabilidad_sistema)
+graficar_polos(polos, estabilidad_sistema)
+
+respuesta_entrada_cero_iterativo()
+
+h_iterativo = respuesta_impulso_iterativo(coeficientes_numerador, coeficientes_denominador)
+
+
+
+
